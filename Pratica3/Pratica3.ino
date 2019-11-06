@@ -71,8 +71,9 @@ unsigned long previous3sIncrementa    = 0;  //guarda se ocorreu 3s, vindo de um 
 unsigned long previous3sDecrementa    = 0;  //guarda se ocorreu 3s, vindo de um decremento
 unsigned long previous100msIncrementa = 0;  //guarda se ocorreu 100ms, vindo de um incremento
 unsigned long previous100msDecrementa = 0;  //guarda se ocorreu 100ms, vindo de um decremento
-const long interval1s    = 1000;            //Intervalo de 1s.
 const long interval3s    = 3000;            //Intervalo de 3s.
+const long interval1s    = 1000;            //Intervalo de 1s.
+const long interval500ms = 500;             //Intervalo de 500ms.
 const long interval100ms = 100;             //Intervalo de 100ms.
 const long interval50ms  = 50;
 //Variaveis usadas para contar tempo
@@ -91,11 +92,21 @@ byte estadoAtual  = ESTADO_NORMAL; //guarda o estado (modo) atual do sistema
 byte estadoFuturo = ESTADO_NORMAL; //guarda o estado (modo) futuro do sistema: depende
                                    //do estado atual e das entradas em um dado instante
 byte estadoAtual2  = ESTADO_NORMAL2;
+byte estadoAnterior = ESTADO_NORMAL2;
+byte digitoConfigurando = 0;
 
 //Variaveis usadas em modo config
 unsigned long previous3s   = 0; //guarda se ocorreu 3s.
 unsigned long previous3ss  = 0;
 unsigned long previous50ms = 0;
+unsigned long count100ms   = 0;
+
+unsigned long contadorNormal2 = 0; //conta o tempo dentro do modo normal2
+
+//Variaveis do display
+int apagueiDisplay = 0;
+unsigned long contadorAlternaDisplay = 0;
+bool acendeDisplay = true;
 
 // ~~~~~~~~~~~~ FIM VARIAVEIS~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
@@ -154,11 +165,12 @@ void ligaSegmentosDisplay(byte valor, byte digito_7)
 
 /*Funcao varre os quatro digitos do display de 7 segmentos deixando cada um deles ligado por 1ms
 o valor de cada um deles e guardado em um vetor 'valor_digito' definido como global*/
-void atualizaDiplays()
+void atualizaDiplays(int v = -1)
 {
   int i; // variavel de iteracao
   for (i = 0; i < 4; i++)
   { //PARA "contador"
+    if(i != v)
      ligaSegmentosDisplay(valor_digito[i],i + D4); //Contador + D4, pq os enables comecam a partir do pino 9 = D4;
   }
 }
@@ -190,9 +202,6 @@ void atualizaVetorDisplay()
   {
     segundos = segundos - 60;
     minutos++;
-   // INICIALIZA O PROXIMO ESTADO
-    previous3s = millis();
-    estadoFuturo = ESTADO_CONFIG;
   }
   if(minutos > 59)
   {
@@ -202,7 +211,43 @@ void atualizaVetorDisplay()
   valor_digito[1] = segundos/10;
   valor_digito[2] = minutos%10;
   valor_digito[3] = minutos/10;
+}
+
+void modoNormal2()
+{
+  bool lerBOTAO_1; //guarda o valor lido de BOTAO_1
+  bool lerBOTAO_2; //guarda o valor lido de BOTAO_1
   
+  atualizaVetorDisplay();
+
+  lerBOTAO_1 = bordaBOTAO_1(); //le BOTAO_1 e verifica se ocorreu uma borda de subida
+  lerBOTAO_2 = bordaBOTAO_2(); //le BOTAO_2 e verifica se ocorreu uma borda de subida
+
+  if(startCount && (lerBOTAO_1 || lerBOTAO_2))
+  {
+    contadorNormal2 = millis();
+    startCount = false;
+
+    estadoFuturo = ESTADO_NORMAL2;
+  }
+  else if((lerBOTAO_1 || lerBOTAO_2) && ((millis() - contadorNormal2) >= interval3s))
+  {
+    contadorNormal2 = millis();
+    startCount = true;
+
+    contadorAlternaDisplay = millis();
+    acendeDisplay = false;
+    apagueiDisplay = 0;
+    estadoFuturo = ESTADO_PISCA3x;
+    estadoAnterior = ESTADO_NORMAL2;
+  }
+  else if(!lerBOTAO_1 && !lerBOTAO_2)
+  {
+    contadorNormal2 = millis();
+    startCount = true;
+
+    estadoFuturo = ESTADO_NORMAL2;
+  }
 }
 
 //Funcao que implementa o sistema funcionando no modo normal
@@ -419,13 +464,13 @@ void maquina_de_estados2()
   switch(estadoAtual2)
   {
     case ESTADO_NORMAL2:
-      atualizaVetorDisplay();
-      break;
-    case ESTADO_CONFIG:
-      modoconfig();
+      modoNormal2();
       break;
     case ESTADO_PISCA3x:
       modoPisca3x();
+      break;
+    case ESTADO_CONFIG:
+      modoConfig();
       break;
     case ESTADO_DIGITO_CONFIG:
       modoDigitoConfig();
@@ -438,14 +483,14 @@ void maquina_de_estados2()
   estadoAtual2 = estadoFuturo;
 }
 
-void modoconfig()
+void modoConfig()
 {
   unsigned long currentMillis3s = millis(); //salva o valor atual do contador de tempo da placa
   // le o estado atual do BOTAO_1
   bool reading = digitalRead(BOTAO_1);
   bool reading2 = digitalRead(BOTAO_2);
   
-  if(((reading2==1)or(reading==1))&&(lastBOTAO_1==1)) //Se o BOTAO_1 continua apertado
+  if(((reading2==1)||(reading==1))&&(lastBOTAO_1==1)) //Se o BOTAO_1 continua apertado
   {
     if (currentMillis3s - previous3s >= interval3s) // verifica se passou 3 segundo
     {
@@ -466,13 +511,37 @@ void modoconfig()
 
 void modoPisca3x()
 {
-  int i=0;
-  unsigned long currentMillis50ms = millis();
-for(i=0; i<3; i++){
-  atualizaDiplays();
-  delay(50);
+  if((millis() - contadorAlternaDisplay >= interval500ms) && !acendeDisplay)
+  {
+    acendeDisplay = true;
+    contadorAlternaDisplay = millis();
+
+    apagueiDisplay += 1;
+    if(apagueiDisplay == 2)
+    {
+      if(estadoAnterior == ESTADO_DIGITO_CONFIG)
+      {
+        estadoFuturo = ESTADO_NORMAL2;
+      }
+      else if(estadoAnterior == ESTADO_NORMAL2)
+      {
+        estadoFuturo = ESTADO_DIGITO_CONFIG;
+        count100ms = millis();
+        digitoConfigurando = 0;
+      }
+    }
   }
-   estadoFuturo = ESTADO_DIGITO_CONFIG;
+
+  if(( (millis() - contadorAlternaDisplay) < interval500ms) && acendeDisplay)
+  {
+    atualizaDiplays();
+  }
+  else if(( (millis() - contadorAlternaDisplay) >= interval500ms) && acendeDisplay)
+  {
+    acendeDisplay = false;
+    contadorAlternaDisplay = millis();
+  }
+   
 }
 
 void modoDigitoConfig()
@@ -482,22 +551,46 @@ void modoDigitoConfig()
   bool reading = digitalRead(BOTAO_1);
   bool reading2 = digitalRead(BOTAO_2);
   
-  if((reading==0)&&(lastBOTAO_1==1)) //Se o BOTAO_1 nao for apertado
-  {
-    if (currentMillis3s - previous3ss >= interval3s) // verifica se passou 3 segundo
-    {
-      estadoFuturo = ESTADO_NORMAL2;
+  if(currentMillis3s - count100ms > 100){
+    atualizaDiplays(digitoConfigurando);
+    if(currentMillis3s - count100ms > 200){
+      count100ms = millis();
+    }
+  } else {
+    atualizaDiplays();
   }
-  else // O botao foi precionado antes dos 3s
+
+  if((reading==1) || (reading2==1)) //Se BOTAO for apertado
   {
-    //tentar fazer um estado para cada display
-      
+      if(reading2){
+        if(digitoConfigurando = 0){
+          segundos++;
+        } else if (digitoConfigurando == 1){
+          segundos += 10;
+        } else if (digitoConfigurando == 2){
+          minutos += 1;
+        } else if (digitoConfigurando == 3){
+          minutos += 10;
+        }
+        atualizaVetorDisplay();
+      }
+      if(reading){
+        digitoConfigurando++;
+        if(digitoConfigurando >= 4){
+          digitoConfigurando = 0;
+        }
+      }
       //Atualiza o estado atual do contador de milisegundos
-       previous3ss = currentMillis3s;
-      //INICIALIZA O NOVO ESTADO
-       estadoFuturo = ESTADO_PISCA3x;
-    }   
+       previous3ss = currentMillis3s;    
   }
+
+  if (currentMillis3s - previous3ss >= interval3s) // verifica se passou 3 segundo
+    {
+      estadoFuturo = ESTADO_PISCA3x;
+      estadoAnterior = ESTADO_DIGITO_CONFIG;
+      apagueiDisplay = 0;
+  }
+
   lastBOTAO_1 = reading; //Atualiza a ultima leitura do botao 
 }
 
@@ -516,6 +609,6 @@ void loop() {
   atualizaVetorDisplay();    // atualiza minutos e segundos
   //atualizaVetorContador();   // Verifica se algum botao foi apertado
  // maquina_de_estados2();        // gerencia as maquinas de estados
-  //atualizaDiplays();           // escreve nos displays
+  atualizaDiplays();           // escreve nos displays
   modoPisca3x();
 }
