@@ -1,5 +1,5 @@
 /*---------------------------------------------
-# AUTOR: Jose Rodrigues de Oliveira Neto      
+# AUTOR: Cecilia Virginia e Jessica Terto      
 # DATA:  11/10/2019
 # DESCRICAO: 
 #        Pratica 3 - Parte 1 2 e 3 -Sistemas Digitais 1 - 2019.2
@@ -107,6 +107,7 @@ unsigned long contadorNormal2 = 0; //conta o tempo dentro do modo normal2
 int apagueiDisplay = 0;
 unsigned long contadorAlternaDisplay = 0;
 bool acendeDisplay = true;
+bool startCount = true;
 
 // ~~~~~~~~~~~~ FIM VARIAVEIS~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
@@ -606,9 +607,9 @@ void setup()
 //##############LOOP PRINCIPAL#####################//
 void loop() {
   microVivo();                 // togglar o led 
-  atualizaVetorDisplay();    // atualiza minutos e segundos
+  //atualizaVetorDisplay();    // atualiza minutos e segundos
   //atualizaVetorContador();   // Verifica se algum botao foi apertado
- // maquina_de_estados2();        // gerencia as maquinas de estados
-  atualizaDiplays();           // escreve nos displays
-  modoPisca3x();
+  maquina_de_estados2();        // gerencia as maquinas de estados
+ atualizaDiplays();           // escreve nos displays
+  //modoPisca3x();
 }
