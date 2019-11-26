@@ -20,7 +20,7 @@ int pwm_horario=0, pwm_antihorario=0;
 int sentido;
 
 Servo carrinho;
-//Ultrasonic visao(trig,echo);
+Ultrasonic visao(trig,echo);
 
 void setup() {
   Serial.begin(9600);
@@ -104,7 +104,7 @@ if(sentido==0){
 //  Serial.print("\n");
 
   
-//distancia = visao.Ranging(CM);
+distancia = visao.Ranging(CM);
 //Serial.print(distancia);
 //Serial.print("\n");
 
