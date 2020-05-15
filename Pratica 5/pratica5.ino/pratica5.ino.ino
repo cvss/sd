@@ -27,10 +27,10 @@
 #define ESTADO_DESVIO_E      2
 #define ESTADO_RE            3
 
-
+long distancia = 0;
 int PWMmotor = 0;
 int converte =0;
-int distancia = 0, anguloservo=0, i=0;
+int anguloservo=0, i=0;
 int pwm_horario=0, pwm_antihorario=0;
 int sentido, CM;
 int pwm_geral = 30;
